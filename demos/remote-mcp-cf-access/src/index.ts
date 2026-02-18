@@ -1,60 +1,38 @@
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
-import { z } from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { handleAccessRequest } from "./access-handler";
 import type { Props } from "./workers-oauth-utils";
 
-const ALLOWED_EMAILS = new Set(["<INSERT EMAIL>"]);
-
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
-		name: "Access OAuth Proxy Demo",
+		name: "Home Assistant MCP Proxy",
 		version: "1.0.0",
 	});
 
 	async init() {
-		// Hello, world!
-		this.server.tool(
-			"add",
-			"Add two numbers the way only MCP can",
-			{ a: z.number(), b: z.number() },
-			async ({ a, b }) => ({
-				content: [{ text: String(a + b), type: "text" }],
-			}),
-		);
+		// No local tools — all requests are proxied to the upstream HA MCP server
+	}
 
-		// Dynamically add tools based on the user's login. In this case, I want to limit
-		// access to my Image Generation tool to just me
-		if (ALLOWED_EMAILS.has(this.props!.email)) {
-			this.server.tool(
-				"generateImage",
-				"Generate an image using the `flux-1-schnell` model. Works best with 8 steps.",
-				{
-					prompt: z
-						.string()
-						.describe("A text description of the image you want to generate."),
-					steps: z
-						.number()
-						.min(4)
-						.max(8)
-						.default(4)
-						.describe(
-							"The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.",
-						),
-				},
-				async ({ prompt, steps }) => {
-					const response = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-						prompt,
-						steps,
-					});
+	// Override the fetch handler to proxy all /mcp requests upstream
+	async fetch(request: Request): Promise<Response> {
+		const upstream = (this.env as any).MCP_UPSTREAM_URL as string;
 
-					return {
-						content: [{ data: response.image!, mimeType: "image/jpeg", type: "image" }],
-					};
-				},
-			);
+		if (!upstream) {
+			return new Response("MCP_UPSTREAM_URL not configured", { status: 500 });
 		}
+
+		const upstreamRequest = new Request(upstream, {
+			method: request.method,
+			headers: new Headers({
+				...Object.fromEntries(request.headers.entries()),
+				"CF-Access-Client-Id": (this.env as any).SERVICE_CLIENT_ID as string,
+				"CF-Access-Client-Secret": (this.env as any).SERVICE_CLIENT_SECRET as string,
+			}),
+			body: request.body,
+		});
+
+		return fetch(upstreamRequest);
 	}
 }
 
