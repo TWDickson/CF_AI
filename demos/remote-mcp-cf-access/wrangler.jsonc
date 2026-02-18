@@ -7,30 +7,13 @@
   "name": "cf-ai",
   "main": "src/index.ts",
   "compatibility_date": "2025-03-10",
-  "migrations": [
-    {
-      "new_sqlite_classes": ["MyMCP"],
-      "tag": "v1"
-    }
-  ],
   "compatibility_flags": ["nodejs_compat"],
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "MyMCP",
-        "name": "MCP_OBJECT"
-      }
-    ]
-  },
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
       "id": "709f2b33d90543e49ccc54fadd19afdf"
     }
   ],
-  "ai": {
-    "binding": "AI"
-  },
   "observability": {
     "enabled": true
   },
