@@ -8,6 +8,16 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat"],
+  "migrations": [
+    {
+      "new_sqlite_classes": ["MyMCP"],
+      "tag": "v1"
+    },
+    {
+      "deleted_classes": ["MyMCP"],
+      "tag": "v2"
+    }
+  ],
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
