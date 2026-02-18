@@ -4,7 +4,7 @@
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mcp-access-oauth",
+  "name": "cf-ai",
   "main": "src/index.ts",
   "compatibility_date": "2025-03-10",
   "migrations": [
@@ -25,7 +25,7 @@
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
-      "id": "<Add-KV-ID>"
+      "id": "709f2b33d90543e49ccc54fadd19afdf"
     }
   ],
   "ai": {
