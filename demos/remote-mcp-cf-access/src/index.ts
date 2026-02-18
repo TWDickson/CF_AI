@@ -1,43 +1,46 @@
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
-import { McpAgent } from "agents/mcp";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { handleAccessRequest } from "./access-handler";
-import type { Props } from "./workers-oauth-utils";
 
-export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
-	server = new McpServer({
-		name: "Home Assistant MCP Proxy",
-		version: "1.0.0",
+async function proxyToUpstream(request: Request, env: Env): Promise<Response> {
+	const upstream = (env as any).MCP_UPSTREAM_URL as string;
+
+	if (!upstream) {
+		return new Response("MCP_UPSTREAM_URL not configured", { status: 500 });
+	}
+
+	const hasBody = request.method !== "GET" && request.method !== "HEAD";
+
+	// Copy headers, stripping ones that shouldn't be forwarded
+	const headers = new Headers();
+	for (const [key, value] of request.headers.entries()) {
+		const lower = key.toLowerCase();
+		if (lower === "host" || lower === "content-length" || lower === "transfer-encoding") {
+			continue;
+		}
+		headers.set(key, value);
+	}
+
+	// Add CF Access service token for tunnel authentication
+	headers.set("CF-Access-Client-Id", (env as any).SERVICE_CLIENT_ID as string);
+	headers.set("CF-Access-Client-Secret", (env as any).SERVICE_CLIENT_SECRET as string);
+
+	const upstreamRequest = new Request(upstream, {
+		method: request.method,
+		headers,
+		body: hasBody ? request.body : undefined,
+		// @ts-ignore - required for streaming bodies in Cloudflare Workers
+		duplex: hasBody ? "half" : undefined,
 	});
 
-	async init() {
-		// No local tools — all requests are proxied to the upstream HA MCP server
-	}
-
-	// Override the fetch handler to proxy all /mcp requests upstream
-	async fetch(request: Request): Promise<Response> {
-		const upstream = (this.env as any).MCP_UPSTREAM_URL as string;
-
-		if (!upstream) {
-			return new Response("MCP_UPSTREAM_URL not configured", { status: 500 });
-		}
-
-		const upstreamRequest = new Request(upstream, {
-			method: request.method,
-			headers: new Headers({
-				...Object.fromEntries(request.headers.entries()),
-				"CF-Access-Client-Id": (this.env as any).SERVICE_CLIENT_ID as string,
-				"CF-Access-Client-Secret": (this.env as any).SERVICE_CLIENT_SECRET as string,
-			}),
-			body: request.body,
-		});
-
-		return fetch(upstreamRequest);
-	}
+	return fetch(upstreamRequest);
 }
 
 export default new OAuthProvider({
-	apiHandler: MyMCP.serve("/mcp"),
+	apiHandler: {
+		fetch: async (request: Request, env: Env, _ctx: ExecutionContext) => {
+			return proxyToUpstream(request, env);
+		},
+	},
 	apiRoute: "/mcp",
 	authorizeEndpoint: "/authorize",
 	clientRegistrationEndpoint: "/register",
