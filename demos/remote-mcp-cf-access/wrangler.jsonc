@@ -7,7 +7,7 @@
   "name": "cf-ai",
   "main": "src/index.ts",
   "compatibility_date": "2025-03-10",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "migrations": [
     {
       "new_sqlite_classes": ["MyMCP"],
